@@ -1,10 +1,10 @@
 import { StillAppSetup } from "../../app-setup.js";
 import { AppTemplate } from "../../app-template.js";
-import { $stillGetRouteMap, stillRoutesMap as DefaultstillRoutesMap } from "../../route.map.js";
+import { stillRoutesMap as DefaultstillRoutesMap } from "../../route.map.js";
 import { $still, ComponentRegistror } from "../component/manager/registror.js";
 import { BaseComponent } from "../component/super/BaseComponent.js";
 import { Components, loadComponentFromPath } from "../setup/components.js";
-import { $stillconst, ST_UNAUTHOR_ID } from "../setup/constants.js";
+import { $stillconst, authErrorMessage, ST_UNAUTHOR_ID } from "../setup/constants.js";
 import { UUIDUtil } from "../util/UUIDUtil.js";
 import { getRoutesFile } from "../util/route.js";
 
@@ -22,7 +22,6 @@ export class Router {
 
     static routeMap;
     static baseUrl = window.location.href.replace('#', '');
-    //static baseUrl = window.location.origin.toString().concat('/');
 
     #data = {};
     static instance = null;
@@ -32,10 +31,8 @@ export class Router {
     static navigatingView = null;
     static navigatingUrl = null;
     static urlParams = {};
-    /** 
-     * clickEvetCntrId only takes place when it comes to lone component so that
-     *  it can identify the context which an event (e.g. Navigation) occurred
-     * */
+    /** clickEvetCntrId only takes place when it comes to lone component so that
+     *  it can identify the context which an event (e.g. Navigation) occurred  */
     static clickEvetCntrId = null;
     static preView = null;
     static navCounter = 0;
@@ -56,13 +53,9 @@ export class Router {
         Router.initRouting = true;
     }
 
-    static data = (cmpName) => Router.getInstance().#data[cmpName];
+    static data = (cmp) => Router.getInstance().#data[cmp.getName()];
 
-    /**
-     * 
-
-     * @param {String} data 
-     */
+    /** @param {String} data  */
     static aliasGoto(cmp, data, url = false, containerId = null) {
 
         if (!url) Router.clearUrlPath();
@@ -105,7 +98,7 @@ export class Router {
         const { data, evt, url } = params;
 
         cmp = Router.initNavigation(cmp);
-        if (evt.containerId) Router.clickEvetCntrId = evt.containerId;
+        if (evt?.containerId) Router.clickEvetCntrId = evt.containerId;
         /**
          * The or (||) conditions serves to mount the application so the user can 
          * be redirected straight to a specific page/page-component instead of being 
@@ -139,19 +132,27 @@ export class Router {
         }
 
 
-        const routeInstance = $stillGetRouteMap()
+        const routeInstance = {
+            route: {
+                ...stillRoutesMap.viewRoutes.lazyInitial,
+                ...stillRoutesMap.viewRoutes.regular
+            }
+        }
         const route = routeInstance.route[cmp]?.path;
 
         const cmpRegistror = $still.context.componentRegistror.componentList;
+        const cmpInstance = cmpRegistror[cmp]?.instance
         const isHomeCmp = StillAppSetup.get().entryComponentName == cmp;
         const isLoneCmp = Router.clickEvetCntrId != null && Router.clickEvetCntrId != 'null';
         if (isHomeCmp && isLoneCmp) {
 
             if (cmp in cmpRegistror) {
 
-                $still.context.currentView = cmpRegistror[cmp].instance;
-                if (!AppTemplate.get().isAuthN() && !cmpRegistror[cmp].instance.isPublic)
-                    document.write($stillconst.MSG.PRIVATE_CMP);
+                $still.context.currentView = cmpInstance;
+                if (
+                    (!AppTemplate.get().isAuthN() && !cmpInstance.isPublic)
+                    || !Components.obj().isInWhiteList(cmpInstance)
+                ) document.write(authErrorMessage());
 
                 Router.getAndDisplayPage($still.context.currentView, true, isHomeCmp);
 
@@ -166,8 +167,10 @@ export class Router {
                     );
                     $still.context.currentView = newInstance;
 
-                    if (!AppTemplate.get().isAuthN() && !$still.context.currentView.isPublic)
-                        document.write($stillconst.MSG.PRIVATE_CMP);
+                    if ((!AppTemplate.get().isAuthN()
+                        && !$still.context.currentView.isPublic)
+                        || !Components.obj().isInWhiteList(newInstance)
+                    ) document.write(authErrorMessage());
 
                     if ($still.context.currentView.template == undefined)
                         return Router.cmpTemplateNotDefinedCheck(cmp);
@@ -207,20 +210,24 @@ export class Router {
                             return Router.cmpTemplateNotDefinedCheck(cmp);
 
                         if (newInstance.isPublic) {
-                            //Components.registerPublicCmp(newInstance);
                             if (!AppTemplate.get().isAuthN()) {
+                                if (!Components.obj().isInWhiteList(newInstance))
+                                    return document.write(authErrorMessage());
+
                                 if (url) Router.updateUrlPath(cmp);
-                                //ComponentRegistror.add(cmp.cmpInternalId, cmp);
                                 return (new Components()).renderPublicComponent(newInstance);
                             }
                         }
 
                         ComponentRegistror.add(cmp, newInstance);
-                        if (!document.getElementById($stillconst.APP_PLACEHOLDER) && !newInstance.isPublic)
-                            return document.write($stillconst.MSG.PRIVATE_CMP);
+                        const isWhiteListed = Components.obj().isInWhiteList(newInstance);
+                        if (!document.getElementById($stillconst.APP_PLACEHOLDER)
+                            && !newInstance.isPublic && isWhiteListed
+                        ) return document.write(authErrorMessage());
 
                         newInstance.isRoutable = true;
-                        if (!wasPrevLoaded && !newInstance.lone) Router.parseComponent(newInstance);
+                        if (!wasPrevLoaded && !newInstance.lone)
+                            if (!Router.importedMap[cmp]) Router.parseComponent(newInstance);
                         newInstance.setRoutableCmp(true);
                         if (isHomeCmp)
                             newInstance.setUUID($stillconst.TOP_LEVEL_CMP);
@@ -228,19 +235,14 @@ export class Router {
                         $still.context.currentView = newInstance;
 
                     } else {
-                        $still.context.currentView = cmpRegistror[cmp]?.instance
-                        if (!$still.context.currentView) {
-                            $still.context.currentView = await (
-                                await Components.produceComponent({ cmp })
-                            ).newInstance
-                        }
+                        const oldInstance = cmpRegistror[cmp]?.instance;
+                        $still.context.currentView = await (
+                            await Components.produceComponent({ cmp })
+                        ).newInstance;
 
+                        if (oldInstance?.cmpInternalId)
+                            $still.context.currentView.cmpInternalId = oldInstance.cmpInternalId;
                         $still.context.currentView.isRoutable = true;
-                        if (!$still.context.currentView.stillParsedState) {
-                            $still.context.currentView = (new Components).getNewParsedComponent(
-                                $still.context.currentView
-                            );
-                        }
                     }
                     Router.getAndDisplayPage($still.context.currentView, Router.importedMap[cmp]);
                 });
@@ -250,7 +252,6 @@ export class Router {
     }
 
     static updateUrlPath(cmp) {
-
         let routeName = cmp;
         if (cmp instanceof Object) routeName = cmp.address;
 
@@ -274,9 +275,12 @@ export class Router {
      * @param { ViewComponent } cmp
      */
     static parseComponent(cmp) {
-        setTimeout(() => {
-            (new Components).getNewParsedComponent(cmp);
-        });
+        if (!cmp.setAndGetsParsed) {
+            cmp.setAndGetsParsed = true;
+            setTimeout(() => {
+                (new Components).getNewParsedComponent(cmp);
+            });
+        }
     }
 
     /**
@@ -299,7 +303,7 @@ export class Router {
                 .unloadLoadedComponent(soleRouting && appPlaceholder)
                 .then(async () => {
                     Router.handleUnauthorizeIfPresent();
-                    if (Router.noPermAccessProcess(isPrivate, appPlaceholder)) return;
+                    if (Router.noPermAccessProcess(isPrivate, appPlaceholder, cmp)) return;
                     if (cmp.subImported) {
                         const pageContent = `
                         <output id="${cmpId}-check" class="cmp-name-page-view-${cmpName}" style="display:contents;">
@@ -311,8 +315,6 @@ export class Router {
                             cmp.parseOnChange();
                         }, 500);
                         await cmp.onRender();
-                        //await componentInstance.stAfterInit();
-
                     } else {
                         await Components.reloadedComponent(cmp, isHome);
                     }
@@ -324,7 +326,7 @@ export class Router {
                 .unloadLoadedComponent(soleRouting && appPlaceholder)
                 .then(async () => {
                     Router.handleUnauthorizeIfPresent();
-                    if (Router.noPermAccessProcess(isPrivate, appPlaceholder)) return;
+                    if (Router.noPermAccessProcess(isPrivate, appPlaceholder, cmp)) return;
                     if (!appPlaceholder && cmp?.isPublic) {
                         appPlaceholder = document.getElementById($stillconst.UI_PLACEHOLDER);
                     }
@@ -337,6 +339,15 @@ export class Router {
                     appPlaceholder.insertAdjacentHTML('afterbegin', pageContent);
 
                     setTimeout(() => cmp.parseOnChange(), 500);
+                    setTimeout(() => {
+                        if (!cmp.setAndGetsParsed) {
+                            cmp.setAndGetsParsed = true;
+                            (new Components)
+                                .parseGetsAndSets(
+                                    ComponentRegistror.component(cmp.cmpInternalId)
+                                )
+                        }
+                    }, 10);
                     await cmp.onRender();
                     setTimeout(() => cmp.$stillLoadCounter = cmp.$stillLoadCounter + 1, 100);
                     setTimeout(() => Router.callCmpAfterInit(`${cmpId}-check`));
@@ -429,23 +440,19 @@ export class Router {
     }
 
     static handleUnauthorizeIfPresent() {
-
-        //setTimeout(() => {
         const unauthorizeContent = document.getElementById(ST_UNAUTHOR_ID);
         if (unauthorizeContent) {
             const parent = unauthorizeContent.parentElement;
             parent.removeChild(unauthorizeContent);
         }
-        //}, 100);
-
     }
 
-    static noPermAccessProcess(isPrivate, appPlaceholder) {
+    static noPermAccessProcess(isPrivate, appPlaceholder, cmp) {
 
         const isUnauthorized = isPrivate && !AppTemplate.get().isAuthN();
         Router.handleUnauthorizeIfPresent();
-        if (isUnauthorized) {
-            appPlaceholder.insertAdjacentHTML('afterbegin', $stillconst.MSG.PRIVATE_CMP);
+        if (isUnauthorized && !Components.obj().isInWhiteList(cmp)) {
+            appPlaceholder.insertAdjacentHTML('afterbegin', authErrorMessage());
             return true;
         }
         return false;
@@ -602,16 +609,17 @@ export class Router {
                     ...stillRoutesMap.viewRoutes.lazyInitial,
                     ...stillRoutesMap.viewRoutes.regular
                 };
-
             };
             resolve('');
-
         })
-
     }
 
-    static setStillHomeUrl() {
+    static setStillHomeUrl = () =>
         Router.baseUrl = `${location.origin}/${STILL_HOME}`;
+
+    static escape() {
+        window.location.href = location.origin + '/#/' + Router.preView.getName();
+        window.location.reload();
     }
 
 }

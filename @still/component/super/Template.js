@@ -1,19 +1,23 @@
+import { StillAppSetup } from "../../../app-setup.js";
 import { AppTemplate } from "../../../app-template.js";
 import { Router } from "../../routing/router.js";
 import { Components } from "../../setup/components.js";
 import { UUIDUtil } from "../../util/UUIDUtil.js";
-import { ViewComponent } from "./ViewComponent.js";
+import { getViewComponent } from "../../util/route.js";
+import { ViewComponent as DefaultViewComponent } from "./ViewComponent.js";
+
 
 export class Template {
 
     static instance = {};
     static toastId = null;
 
-    /** @param { ViewComponent } cmp */
+    /** @param { DefaultViewComponent } cmp */
     constructor(cmp = null) {
 
+        const ViewComponent = getViewComponent(DefaultViewComponent);
         if (cmp?.prototype instanceof ViewComponent)
-            Components.get().setHomeComponent(cmp);
+            StillAppSetup.get().setHomeComponent(cmp);
 
         const clsName = 'AppTemplate';
         if (!(clsName in Template.instance))
@@ -21,7 +25,7 @@ export class Template {
 
     }
 
-    /** @param { ViewComponent } cmp */
+    /** @param { DefaultViewComponent } cmp */
     static async newApp(cmp = null) {
 
         const pathAddress = await Router.getComponentFromPath();
@@ -29,10 +33,7 @@ export class Template {
         else return new AppTemplate(cmp);
 
     }
-    /**
-     * 
-     * @returns { Template }
-     */
+    /** @returns { Template } */
     static get() {
         const clsName = 'AppTemplate';
         if (!(clsName in Template.instance)) {
@@ -93,29 +94,12 @@ export class Template {
 
     }
 
-    setAuthN(value) {
-
-        const clsName = this.constructor.name;
-        if (!('authn' in Template.instance[clsName])) {
-            Template.instance[clsName]['authn'] = null;
-        }
-        const storedValue = this.storageSet('authn', value);
-        Template.instance[clsName]['authn'] = storedValue;
-    }
-
     isAuthN() {
-
-        let storedValue = this.storageGet('authn');
-        if (storedValue) {
-            Template.instance[this.constructor.name]['authn'] = storedValue;
-        }
-
-        return storedValue;
+        return StillAppSetup.authFlag['authn'];
     }
 
     unloadApp() {
         Components.unloadApp();
-        //Router.goto('init');
         window.location.reload();
     }
 
@@ -214,23 +198,14 @@ export class Template {
                 <div class="still-toast-progress"></div>
             </div>
         `;
-
         document.body.insertAdjacentHTML('beforebegin', content);
 
     }
 
-
     static getToastId() {
-
         if (!Template.toastId)
             Template.toastId = `toast_${UUIDUtil.newId()}`;
-
         return Template.toastId;
-
     }
 
-
-
 }
-
-window.Template = Template;

@@ -1,6 +1,6 @@
 import { $stillconst } from "../../setup/constants.js";
 
-const validationPatterns = {
+export const validationPatterns = {
     'number': /^\d{0,}$/,
     'alhpanumeric': /^[a-zA-Z0-9]{0,}$/,
     'text': /^(.){0,}$/,
@@ -44,7 +44,6 @@ export class BehaviorComponent {
     ]
 
     /**
-     * 
      * @param {*} field 
      * @param {{ value: string, required: Blob, pattern: RegExp }} inpt 
      */
@@ -69,21 +68,17 @@ export class BehaviorComponent {
 
         this[field] = inpt.value;
 
-        /**
-         * If the validation trigger was set and it and
+        /** If the validation trigger was set and it and
          * it should not trigger when typing then its get 
-         * stopped by return statement
-         */
+         * stopped by return statement */
         if (isTriggerSet && !isOntypeTrigger) return;
 
         if (validationTrigger && !isOntypeTrigger) {
             if (validationTriggers[validationTrigger] != validationTriggers.typing) {
                 const actualTrigger = validationTriggers[validationTrigger];
                 if (!inpt[actualTrigger] && (validationTrigger in validationTriggers)) {
-                    /**
-                     * Bellow line will pich the trigger and add as event to the input
-                     * e.g input.onkeyup = () => {};
-                     */
+                    /**  Bellow line will pich the trigger and add as event to the input
+                     * e.g input.onkeyup = () => {}; */
                     inpt[actualTrigger] = () => {
                         this.#handleInputValidation(inpt, field, formRef, pattern, required);
                     }
@@ -100,10 +95,8 @@ export class BehaviorComponent {
             }
         }
 
-        /**
-         * In case no validation trigger was not set of set to typing (ontype/onkeyup)
-         * then validation function will be called everytime new character is entered
-         */
+        /** In case no validation trigger was not set of set to typing (ontype/onkeyup)
+         * then validation function will be called everytime new character is entered */
         return this.#handleInputValidation(inpt, field, formRef, pattern, required);
 
     }
@@ -111,7 +104,7 @@ export class BehaviorComponent {
     #handleInputValidation(inpt, field, formRef, pattern, required) {
 
         const { value } = inpt;
-        let isValid = true;
+        let isValid = true, validation;
         const fieldPath = `${this.constructor.name}${formRef && formRef != 'null' ? `-${formRef}` : ''}`;
         const numOutRangeMsg = this.#handleMinMaxValidation(inpt, pattern, value, fieldPath);
 
@@ -128,19 +121,20 @@ export class BehaviorComponent {
                 if (pattern in validationPatterns) {
                     regex = validationPatterns[pattern];
                 } else {
-
                     const datePattern = this.#checkDatePattern(pattern);
                     if (datePattern) regex = datePattern;
                     if (!datePattern) regex = String.raw`${regex}`;
                 }
-
-
-                const validation = value.match(new RegExp(regex));
-                if (!validation || !validation[0]?.length) isValid = false;
+                if (typeof regex == 'function') {
+                    validation = regex(value);
+                    if (!validation) isValid = false;
+                } else {
+                    validation = value.match(new RegExp(regex));
+                    if (!validation || !validation[0]?.length) isValid = false;
+                }
             }
 
             if (value.trim() == '' && required) isValid = false;
-
             if (!isValid) this.#handleValidationWarning('add', inpt, fieldPath);
             else this.#handleValidationWarning('remove', inpt, fieldPath);
 
@@ -161,11 +155,9 @@ export class BehaviorComponent {
             let min = this.#parseLikelyNumber(inpt.getAttribute('(validator-min)'));
             let max = this.#parseLikelyNumber(inpt.getAttribute('(validator-max)'));
 
-            /**
-             * If not min and max restriction stated then 
+            /** If not min and max restriction stated then 
              * any value will be allowed and get passed to
-             * the next validation on the pipeline
-             */
+             * the next validation on the pipeline */
             if (!min && !max) return false;
 
             const isValidNum = this.#parseLikelyNumber(value);
@@ -194,7 +186,6 @@ export class BehaviorComponent {
     }
 
     /**
-     * 
      * @param {string} pattern 
      */
     #checkDatePattern(pattern) {
@@ -220,7 +211,6 @@ export class BehaviorComponent {
     }
 
     /**
-     * 
      * @param {'add' | 'remove'} opt 
      * @param {HTMLElement} inpt 
      * @param {string} message 
@@ -267,7 +257,6 @@ export class BehaviorComponent {
     }
 
     /**
-     * 
      * @param {string} mt 
      * @param {Object} cmp 
      * @param {string} field 
@@ -304,8 +293,6 @@ export class BehaviorComponent {
 
 
     }
-
-    changeState(input, value) { }
 
     static validateForm(fieldPath) {
 
@@ -353,10 +340,7 @@ export class BehaviorComponent {
         return null;
     }
 
-    /**
-     * 
-     * @param {'load'} evt 
-     */
+    /** @param {'load'} evt */
     on(evt, action) {
 
         if (evt in this.behaviorEvtSubscriptions) {
@@ -379,10 +363,7 @@ export class BehaviorComponent {
 
     }
 
-    /**
-     * 
-     * @param {'load'} evt 
-     */
+    /** @param {'load'} evt */
     emit(evt) {
         if (!(evt in this.behaviorEvtSubscriptions)) {
             const status = $stillconst.A_STATUS.DONE;

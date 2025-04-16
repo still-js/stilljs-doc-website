@@ -1,5 +1,20 @@
+export let $stillconst = { MSG: { CUSTOM_PRIVATE_CMP: null } };
+
+export const authErrorMessage = () => `
+        <div class="st-unauthorized-access" id="${ST_UNAUTHOR_ID}">
+            ${!$stillconst.MSG.CUSTOM_PRIVATE_CMP
+        ? `<h3 style='color:red;'>
+                    <b>Unauthorized Access:</b> You're trying to access a  a private component or View/Page, 
+                    <br>in case you need to access it without making log-in please make isPublic flag true
+                </h3>`
+        : $stillconst.MSG.CUSTOM_PRIVATE_CMP}
+            <a href="#" onclick="Router.escape()">Go back<button>
+        </div>
+    `;
+
 export const ST_UNAUTHOR_ID = `stillAppUnauthorizedPage`;
-export const $stillconst = {
+$stillconst = {
+    ...$stillconst,
     //This is a main/principal/first component CSS class only
     TOP_LEVEL_CMP: 'still-toplevel-and-root-app',
     ST_HOME_CMP: 'still-toplevel-and-home-app',
@@ -38,10 +53,7 @@ export const $stillconst = {
      * Bellow constants for error messages are assigned
      */
     MSG: {
-        PRIVATE_CMP: `<h3 style='color:red;' id="${ST_UNAUTHOR_ID}">
-                        <b>Unauthorized Access:</b> You're trying to access a  a private component or View/Page, 
-                           <br>in case you need to access it without making log-in please make isPublic flag true
-                     </h3>`,
+        PRIVATE_CMP: ``,
 
         UNKNOWN_ROUTE: `<h3 style='color:red;' id="${ST_UNAUTHOR_ID}">
                         <b>Invalid Route:</b> You're trying to access a non existing route {{}}.
@@ -68,6 +80,7 @@ export const $stillconst = {
 
 export const ST_RE = {
     st_element: /\<st-element[\> \@ \/ \. \" \, \w \s \= \- \ \( \)]{0,}/g,
-    st_fixed: /\<st-fixed[\> \. \" \, \w \s \= \- \ \( \)]{0,}/g,
+    st_fixed: /\<st-fixed[\> \. \" \, \w \s \= \- \ \( \)]{0,}\/\>/g,
     bind_css: /(style\=\"(.*)\")/
 }
+
