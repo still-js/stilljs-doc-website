@@ -1,4 +1,5 @@
 import { ViewComponent } from "../../../@still/component/super/ViewComponent.js";
+import { Components } from "../../../@still/setup/components.js";
 
 export class UserForm extends ViewComponent {
 
@@ -26,7 +27,7 @@ export class UserForm extends ViewComponent {
 		this.changeCounter = this.changeCounter.value + 1;
 
 		/** @type { UserGrid } */
-		const userGridObj = Components.getFromRef('insideFormGridReference');
+		const userGridObj = Components.ref('insideFormGridReference');
 		userGridObj.tableTitle = 'Title altered ' + this.changeCounter.value + 'x';
 	}
 
